@@ -1,8 +1,8 @@
-const express = require('express');
+const express = require("express");
 const app = express();
-const http = require('http').createServer(app);
-const io = require('socket.io')(http, { cors: { origin: "*" } });
-const path = require('path');
+const http = require("http").createServer(app);
+const io = require("socket.io")(http, { cors: { origin: "*" } });
+const path = require("path");
 
 const admin = require("firebase-admin");
 const serviceAccount = require("./serviceAccountKey.json");
@@ -15,46 +15,49 @@ const db = admin.firestore();
 
 const rooms = {};
 
-const colors = ['red', 'blue', 'green', 'yellow'];
-const types = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+2', '🚫', '⇄', '🌈', '🔥+4'];
+const colors = ["red", "blue", "green", "yellow"];
+const types = ["0","1","2","3","4","5","6","7","8","9","+2","🚫","⇄","🌈","🔥+4"];
 
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+app.get("/", (req, res) => {
+    res.sendFile(path.join(__dirname, "index.html"));
 });
 
-function createUnoDeck() {
+// ---------------- DECK ----------------
+function createDeck() {
     let deck = [];
-    colors.forEach(color => {
-        types.forEach(type => {
-            if (type !== '🌈' && type !== '🔥+4') {
-                deck.push({ color, type });
-                if (type !== '0') deck.push({ color, type });
+    colors.forEach(c => {
+        types.forEach(t => {
+            if (t !== "🌈" && t !== "🔥+4") {
+                deck.push({ color: c, type: t });
+                if (t !== "0") deck.push({ color: c, type: t });
             }
         });
     });
+
     for (let i = 0; i < 4; i++) {
-        deck.push({ color: 'black', type: '🌈' });
-        deck.push({ color: 'black', type: '🔥+4' });
+        deck.push({ color: "black", type: "🌈" });
+        deck.push({ color: "black", type: "🔥+4" });
     }
+
     return deck.sort(() => Math.random() - 0.5);
 }
 
-function getNextTurn(room) {
-    let next = room.currentTurn + room.direction;
-    if (next < 0) next = room.players.length - 1;
-    if (next >= room.players.length) next = 0;
-    return next;
+function nextTurn(room) {
+    let n = room.currentTurn + room.direction;
+    if (n < 0) n = room.players.length - 1;
+    if (n >= room.players.length) n = 0;
+    return n;
 }
 
-function drawCardsForPlayer(room, player, count) {
+function draw(room, player, count) {
     for (let i = 0; i < count; i++) {
-        if (room.deck.length === 0) room.deck = createUnoDeck();
+        if (room.deck.length === 0) room.deck = createDeck();
         player.cards.push(room.deck.pop());
     }
-    io.to(player.id).emit('your-cards', player.cards);
+    io.to(player.id).emit("your-cards", player.cards);
 }
 
-// FIREBASE USER FUNCTIONS
+// ---------------- FIREBASE ----------------
 async function getUser(id) {
     const doc = await db.collection("users").doc(id).get();
     return doc.exists ? doc.data() : null;
@@ -64,40 +67,49 @@ async function saveUser(id, data) {
     await db.collection("users").doc(id).set(data, { merge: true });
 }
 
-io.on('connection', (socket) => {
+// ---------------- RANK ----------------
+function getRank(xp) {
+    if (xp < 100) return "🥉 Bronze";
+    if (xp < 300) return "🥈 Silver";
+    if (xp < 600) return "🥇 Gold";
+    if (xp < 1000) return "💎 Diamond";
+    return "👑 Legend";
+}
 
-    socket.emit('update-room-list', Object.values(rooms).map(r => ({
-        id: r.id,
-        title: r.title,
-        count: r.players.length
-    })));
+// ---------------- LEADERBOARD ----------------
+async function leaderboard() {
+    const snap = await db.collection("users").get();
+    let arr = [];
+    snap.forEach(d => arr.push(d.data()));
+    return arr.sort((a,b) => (b.xp||0)-(a.xp||0));
+}
 
-    socket.on('create-room', ({ username, roomName }) => {
-        const roomId = 'room-' + Math.floor(1000 + Math.random() * 9000);
+// ---------------- SOCKET ----------------
+io.on("connection", (socket) => {
 
-        rooms[roomId] = {
-            id: roomId,
-            title: roomName || `${username} otağı`,
+    socket.on("create-room", ({ username }) => {
+        const id = "room-" + Math.floor(Math.random()*9999);
+
+        rooms[id] = {
+            id,
+            title: username + " room",
             players: [],
-            deck: createUnoDeck(),
-            discardPile: [],
+            deck: createDeck(),
+            discard: [],
             currentTurn: 0,
             direction: 1,
-            status: 'waiting'
+            status: "waiting"
         };
 
-        joinRoomLogic(socket, roomId, username);
+        join(socket, id, username);
     });
 
-    socket.on('join-room', ({ roomId, username }) => {
-        if (!rooms[roomId]) return socket.emit('error-msg', 'Otaq tapılmadı!');
-        if (rooms[roomId].players.length >= 4) return socket.emit('error-msg', 'Otaq doludur!');
-        if (rooms[roomId].status === 'playing') return socket.emit('error-msg', 'Oyun başladı!');
-
-        joinRoomLogic(socket, roomId, username);
+    socket.on("join-room", ({ roomId, username }) => {
+        if (!rooms[roomId]) return;
+        join(socket, roomId, username);
     });
 
-    function joinRoomLogic(socket, roomId, username) {
+    function join(socket, roomId, username) {
         socket.join(roomId);
 
         rooms[roomId].players.push({
@@ -106,15 +118,8 @@ io.on('connection', (socket) => {
             cards: []
         });
 
-        io.emit('update-room-list', Object.values(rooms).map(r => ({
-            id: r.id,
-            title: r.title,
-            count: r.players.length
-        })));
-
-        io.to(roomId).emit('room-joined', {
+        io.to(roomId).emit("room-joined", {
             roomId,
-            title: rooms[roomId].title,
             players: rooms[roomId].players.map(p => ({
                 id: p.id,
                 username: p.username,
@@ -123,58 +128,59 @@ io.on('connection', (socket) => {
         });
     }
 
-    socket.on('start-game', (roomId) => {
+    // ---------------- START GAME ----------------
+    socket.on("start-game", (roomId) => {
         const room = rooms[roomId];
-        if (!room || room.status === 'playing') return;
+        if (!room) return;
 
-        room.status = 'playing';
+        room.status = "playing";
 
-        room.players.forEach(p => drawCardsForPlayer(room, p, 7));
+        room.players.forEach(p => draw(room, p, 7));
 
-        let firstCard = room.deck.pop();
-        room.discardPile.push(firstCard);
+        const first = room.deck.pop();
+        room.discard.push(first);
 
-        io.to(roomId).emit('game-started', {
-            topCard: firstCard,
-            currentTurnId: room.players[0].id,
-            players: room.players.map(p => ({
-                id: p.id,
-                username: p.username,
-                cardCount: p.cards.length
-            }))
+        io.to(roomId).emit("game-started", {
+            topCard: first,
+            currentTurnId: room.players[0].id
         });
     });
 
-    socket.on('play-card', async ({ roomId, card }) => {
+    // ---------------- PLAY CARD ----------------
+    socket.on("play-card", async ({ roomId, card }) => {
         const room = rooms[roomId];
         if (!room) return;
 
         const player = room.players[room.currentTurn];
         if (player.id !== socket.id) return;
 
-        const top = room.discardPile.at(-1);
+        const top = room.discard.at(-1);
 
-        if (card.color === top.color || card.type === top.type || card.color === 'black') {
+        if (card.color === top.color || card.type === top.type || card.color === "black") {
 
             player.cards = player.cards.filter(c =>
                 !(c.color === card.color && c.type === card.type)
             );
 
-            room.discardPile.push(card);
+            room.discard.push(card);
 
-            // WIN
+            // ---------------- WIN ----------------
             if (player.cards.length === 0) {
 
                 let user = await getUser(player.id) || {
                     xp: 0,
                     wins: 0,
                     losses: 0,
-                    level: 1
+                    level: 1,
+                    rank: "🥉 Bronze",
+                    coins: 0
                 };
 
-                user.wins += 1;
+                user.wins++;
                 user.xp += 50;
                 user.level = Math.floor(user.xp / 100) + 1;
+                user.rank = getRank(user.xp);
+                user.coins += 10;
 
                 await saveUser(player.id, user);
 
@@ -184,48 +190,70 @@ io.on('connection', (socket) => {
                             xp: 0,
                             wins: 0,
                             losses: 0,
-                            level: 1
+                            level: 1,
+                            rank: "🥉 Bronze",
+                            coins: 0
                         };
 
-                        u.losses += 1;
+                        u.losses++;
                         await saveUser(p.id, u);
                     }
                 }
 
-                io.to(roomId).emit('game-over', {
+                io.to(roomId).emit("game-over", {
                     winner: player.username,
                     stats: user
                 });
 
-                room.status = 'waiting';
+                room.status = "waiting";
                 return;
             }
 
-            room.currentTurn = getNextTurn(room);
+            room.currentTurn = nextTurn(room);
 
-            io.to(roomId).emit('game-updated', {
+            io.to(roomId).emit("game-updated", {
                 topCard: card,
-                currentTurnId: room.players[room.currentTurn].id,
-                players: room.players.map(p => ({
-                    id: p.id,
-                    username: p.username,
-                    cardCount: p.cards.length
-                }))
+                currentTurnId: room.players[room.currentTurn].id
             });
 
-            socket.emit('your-cards', player.cards);
+            socket.emit("your-cards", player.cards);
 
-        } else {
-            socket.emit('error-msg', 'Yanlış kart!');
         }
     });
 
-    socket.on('disconnect', () => {
-        for (let id in rooms) {
-            rooms[id].players = rooms[id].players.filter(p => p.id !== socket.id);
-        }
+    // ---------------- DRAW CARD ----------------
+    socket.on("draw-card", (roomId) => {
+        const room = rooms[roomId];
+        const player = room.players[room.currentTurn];
+
+        if (player.id !== socket.id) return;
+
+        draw(room, player, 1);
+
+        room.currentTurn = nextTurn(room);
+
+        io.to(roomId).emit("game-updated", {
+            currentTurnId: room.players[room.currentTurn].id
+        });
     });
+
+    // ---------------- LEADERBOARD ----------------
+    socket.on("get-leaderboard", async () => {
+        socket.emit("leaderboard-data", (await leaderboard()).slice(0, 10));
+    });
+
+    // ---------------- PROFILE ----------------
+    socket.on("get-profile", async () => {
+        let user = await getUser(socket.id);
+
+        if (!user) {
+            user = { xp: 0, wins: 0, losses: 0, level: 1, rank: "🥉 Bronze", coins: 0 };
+        }
+
+        socket.emit("profile-data", user);
+    });
+
 });
 
 const PORT = process.env.PORT || 3000;
-http.listen(PORT, () => console.log("UNO Server işləyir 🚀"));
+http.listen(PORT, () => console.log("UNO FULL SERVER RUN 🚀"));

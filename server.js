@@ -167,93 +167,48 @@ io.on("connection", (socket) => {
             // ---------------- WIN ----------------
             if (player.cards.length === 0) {
 
-                let user = await getUser(player.id) || {
-                    xp: 0,
-                    wins: 0,
-                    losses: 0,
-                    level: 1,
-                    rank: "🥉 Bronze",
-                    coins: 0
-                };
+                let user = await getUser(player.username) || {
+    xp: 0,
+    wins: 0,
+    losses: 0,
+    level: 1,
+    rank: "🥉 Bronze",
+    coins: 0
+};
 
-                user.wins++;
-                user.xp += 50;
-                user.level = Math.floor(user.xp / 100) + 1;
-                user.rank = getRank(user.xp);
-                user.coins += 10;
+// 🏆 WIN UPDATE
+user.wins += 1;
+user.xp += 50;
+user.level = Math.floor(user.xp / 100) + 1;
+user.rank = getRank(user.xp);
+user.coins += 10;
 
-                await saveUser(player.id, user);
+await saveUser(player.username, user);
 
-                for (let p of room.players) {
-                    if (p.id !== player.id) {
-                        let u = await getUser(p.id) || {
-                            xp: 0,
-                            wins: 0,
-                            losses: 0,
-                            level: 1,
-                            rank: "🥉 Bronze",
-                            coins: 0
-                        };
+// 💀 LOSS UPDATE (digər oyunçular)
+for (let p of room.players) {
+    if (p.id !== player.id) {
 
-                        u.losses++;
-                        await saveUser(p.id, u);
-                    }
-                }
+        let u = await getUser(p.username) || {
+            xp: 0,
+            wins: 0,
+            losses: 0,
+            level: 1,
+            rank: "🥉 Bronze",
+            coins: 0
+        };
 
-                io.to(roomId).emit("game-over", {
-                    winner: player.username,
-                    stats: user
-                });
+        u.losses += 1;
 
-                room.status = "waiting";
-                return;
-            }
+        await saveUser(p.username, u);
+    }
+}
 
-            room.currentTurn = nextTurn(room);
-
-            io.to(roomId).emit("game-updated", {
-                topCard: card,
-                currentTurnId: room.players[room.currentTurn].id
-            });
-
-            socket.emit("your-cards", player.cards);
-
-        }
-    });
-
-    // ---------------- DRAW CARD ----------------
-    socket.on("draw-card", (roomId) => {
-        const room = rooms[roomId];
-        const player = room.players[room.currentTurn];
-
-        if (player.id !== socket.id) return;
-
-        draw(room, player, 1);
-
-        room.currentTurn = nextTurn(room);
-
-        io.to(roomId).emit("game-updated", {
-            currentTurnId: room.players[room.currentTurn].id
-        });
-    });
-
-    // ---------------- LEADERBOARD ----------------
-    socket.on("get-leaderboard", async () => {
-        socket.emit("leaderboard-data", (await leaderboard()).slice(0, 10));
-    });
-
-    // ---------------- PROFILE ----------------
-    socket.on("get-profile", async () => {
-        let user = await getUser(socket.id);
-
-        if (!user) {
-            user = { xp: 0, wins: 0, losses: 0, level: 1, rank: "🥉 Bronze", coins: 0 };
-        }
-
-        socket.emit("profile-data", user);
-    });
-
+// 🏁 GAME OVER EMIT
+io.to(roomId).emit("game-over", {
+    winner: player.username,
+    stats: user
 });
 
-const PORT = process.env.PORT || 3000;
-http.listen(PORT, () => console.log("UNO FULL SERVER RUN 🚀"));
+room.status = "waiting";
+return;

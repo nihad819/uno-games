@@ -6,7 +6,6 @@ const path = require('path');
 
 const rooms = {}; 
 const colors = ['red', 'blue', 'green', 'yellow'];
-// Əsl UNO simvolları: 🚫 (Skip), ⇄ (Reverse), +2 (Draw Two), 🌈 (Wild), 🔥+4 (Wild Draw Four)
 const types = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+2', '🚫', '⇄', '🌈', '🔥+4'];
 
 app.get('/', (req, res) => {
@@ -30,8 +29,26 @@ function createUnoDeck() {
     return deck.sort(() => Math.random() - 0.5);
 }
 
+// Növbəti oyunçunun indeksini hesablayan funksiya (Yönü nəzərə alır)
+function getNextTurn(room) {
+    let next = room.currentTurn + room.direction;
+    if (next < 0) next = room.players.length - 1;
+    if (next >= room.players.length) next = 0;
+    return next;
+}
+
+// Dekdən oyunçuya kart verən funksiya
+function drawCardsForPlayer(room, player, count) {
+    for (let i = 0; i < count; i++) {
+        if (room.deck.length === 0) {
+            room.deck = createUnoDeck();
+        }
+        player.cards.push(room.deck.pop());
+    }
+    io.to(player.id).emit('your-cards', player.cards);
+}
+
 io.on('connection', (socket) => {
-    console.log(`İstifadəçi qoşuldu: ${socket.id}`);
     socket.emit('update-room-list', Object.values(rooms).map(r => ({ id: r.id, title: r.title, count: r.players.length })));
 
     socket.on('create-room', ({ username, roomName }) => {
@@ -43,6 +60,7 @@ io.on('connection', (socket) => {
             deck: createUnoDeck(),
             discardPile: [],
             currentTurn: 0,
+            direction: 1, // 1 = Saat əqrəbi yönü, -1 = Əks yön
             status: 'waiting'
         };
         joinRoomLogic(socket, roomId, username);
@@ -75,17 +93,19 @@ io.on('connection', (socket) => {
     socket.on('start-game', (roomId) => {
         const room = rooms[roomId];
         if (!room || room.status === 'playing') return;
+
         room.status = 'playing';
         room.players.forEach(player => {
-            player.cards = room.deck.splice(0, 7);
-            io.to(player.id).emit('your-cards', player.cards);
+            drawCardsForPlayer(room, player, 7);
         });
+
         let firstCard = room.deck.pop();
-        while(firstCard.color === 'black') {
+        while(firstCard.color === 'black' || firstCard.type === '+2' || firstCard.type === '🚫' || firstCard.type === '⇄') {
             room.deck.unshift(firstCard);
             firstCard = room.deck.pop();
         }
         room.discardPile.push(firstCard);
+
         io.to(roomId).emit('game-started', {
             topCard: firstCard,
             currentTurnId: room.players[room.currentTurn].id,
@@ -93,43 +113,102 @@ io.on('connection', (socket) => {
         });
     });
 
+    // DEKDƏN KART ÇƏKMƏK
     socket.on('draw-card', (roomId) => {
         const room = rooms[roomId];
         if (!room || room.status !== 'playing') return;
+
         const player = room.players[room.currentTurn];
         if (player.id !== socket.id) return socket.emit('error-msg', 'Sizin növbəniz deyil!');
-        if (room.deck.length === 0) room.deck = createUnoDeck();
-        const newCard = room.deck.pop();
-        player.cards.push(newCard);
-        room.currentTurn = (room.currentTurn + 1) % room.players.length;
+
+        // 1 ədəd kart çəkir
+        drawCardsForPlayer(room, player, 1);
+
+        // Növbəni növbəti oyunçuya ötürürük
+        room.currentTurn = getNextTurn(room);
+
         io.to(roomId).emit('game-updated', {
             topCard: room.discardPile[room.discardPile.length - 1],
             currentTurnId: room.players[room.currentTurn].id,
             players: room.players.map(p => ({ id: p.id, username: p.username, cardCount: p.cards.length }))
         });
-        socket.emit('your-cards', player.cards);
     });
 
+    // KART ATILMASI VƏ ƏSL UNO QAYDALARI
     socket.on('play-card', ({ roomId, card, chosenColor }) => {
         const room = rooms[roomId];
         if (!room) return;
+
         const player = room.players[room.currentTurn];
         if (player.id !== socket.id) return socket.emit('error-msg', 'Sizin növbəniz deyil!');
+
         const topCard = room.discardPile[room.discardPile.length - 1];
 
+        // Kart atma şərti (Rəng eyni, tip eyni və ya Qara kartdırsa)
         if (card.color === topCard.color || card.type === topCard.type || card.color === 'black') {
+            
+            // Kartı oyunçunun əlindən silirik
             player.cards = player.cards.filter(c => !(c.color === card.color && c.type === card.type));
-            if (card.color === 'black' && chosenColor) card.color = chosenColor;
+            
+            // Qara kart atılıbsa rəngi dəyişirik
+            if (card.color === 'black' && chosenColor) {
+                card.color = chosenColor; 
+            }
+
+            // Kartı yerə atırıq
             room.discardPile.push(card);
-            room.currentTurn = (room.currentTurn + 1) % room.players.length;
+
+            // Qalibiyyət yoxlanışı
+            if (player.cards.length === 0) {
+                io.to(roomId).emit('game-over', { winner: player.username });
+                room.status = 'waiting';
+                return;
+            }
+
+            // NÖVBƏTİ OYUNÇUNUN TƏYİN EDİLMƏSİ VƏ KART QAYDALARI
+            let nextPlayerIndex = getNextTurn(room);
+            let nextPlayer = room.players[nextPlayerIndex];
+
+            if (card.type === '🚫') {
+                // Pas kartı: Növbəti oyunçunu atlayır, ondan sonrakına keçir
+                io.to(roomId).emit('special-card-log', `${player.username} PAS atdı! ${nextPlayer.username} bu turu oynamır.`);
+                room.currentTurn = getNextTurn({ ...room, currentTurn: nextPlayerIndex });
+            } 
+            else if (card.type === '⇄') {
+                // Yön dəyişmə kartı
+                room.direction *= -1;
+                io.to(roomId).emit('special-card-log', `Oyunun yönü dəyişdi! ⇄`);
+                room.currentTurn = getNextTurn(room); // Yeni yönə görə növbəti oyunçu
+            } 
+            else if (card.type === '+2') {
+                // +2 Kartı: Növbəti oyunçuya 2 kart verir və növbəsini əlindən alır
+                drawCardsForPlayer(room, nextPlayer, 2);
+                io.to(roomId).emit('special-card-log', `${player.username} +2 atdı! ${nextPlayer.username} 2 kart çəkdi və turu itirdi.`);
+                room.currentTurn = getNextTurn({ ...room, currentTurn: nextPlayerIndex });
+            } 
+            else if (card.type === '🔥+4') {
+                // 🔥+4 Kartı: Növbəti oyunçuya 4 kart verir və növbəsini əlindən alır
+                drawCardsForPlayer(room, nextPlayer, 4);
+                io.to(roomId).emit('special-card-log', `${player.username} 🔥+4 atdı! ${nextPlayer.username} 4 kart çəkdi və turu itirdi.`);
+                room.currentTurn = getNextTurn({ ...room, currentTurn: nextPlayerIndex });
+            } 
+            else {
+                // Normal rəqəm kartı atılıbsa, növbə sadəcə növbəti oyunçuya keçir
+                room.currentTurn = nextPlayerIndex;
+            }
+
+            // Hamıya oyunun yeniləndiyini xəbər veririk
             io.to(roomId).emit('game-updated', {
                 topCard: card,
                 currentTurnId: room.players[room.currentTurn].id,
                 players: room.players.map(p => ({ id: p.id, username: p.username, cardCount: p.cards.length }))
             });
+
+            // Kartı atan oyunçuya öz yeni əlini göndəririk
             socket.emit('your-cards', player.cards);
+
         } else {
-            socket.emit('error-msg', 'Bu kartı ata bilməzsiniz!');
+            socket.emit('error-msg', 'Bu kartı ata bilməzsiniz! Rəng və ya simvol uyğun gəlmir.');
         }
     });
 

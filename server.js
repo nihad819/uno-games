@@ -5,6 +5,7 @@ const io = require('socket.io')(http, { cors: { origin: "*" } });
 const path = require('path');
 
 const rooms = {}; 
+const users = {};
 const colors = ['red', 'blue', 'green', 'yellow'];
 const types = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+2', '🚫', '⇄', '🌈', '🔥+4'];
 

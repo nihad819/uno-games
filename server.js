@@ -6,9 +6,9 @@ const path = require('path');
 
 const rooms = {}; 
 const colors = ['red', 'blue', 'green', 'yellow'];
+// Əsl UNO simvolları: 🚫 (Skip), ⇄ (Reverse), +2 (Draw Two), 🌈 (Wild), 🔥+4 (Wild Draw Four)
 const types = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+2', '🚫', '⇄', '🌈', '🔥+4'];
 
-// 🔥 BU HİSSƏ YENİDİR: Server artıq daxilindəki index.html faylını internetə açacaq!
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });

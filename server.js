@@ -7,6 +7,7 @@ const rooms = {};
 const colors = ['red', 'blue', 'green', 'yellow'];
 const types = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+2', '🚫', '⇄', '🌈', '🔥+4'];
 
+// Əsl 108 kartlıq UNO dəstəsini yaradan funksiya
 function createUnoDeck() {
     let deck = [];
     colors.forEach(color => {
@@ -27,6 +28,7 @@ function createUnoDeck() {
 io.on('connection', (socket) => {
     console.log(`İstifadəçi qoşuldu: ${socket.id}`);
 
+    // Giriş edən oyunçuya aktiv otaqları göndər
     socket.emit('update-room-list', Object.values(rooms).map(r => ({ id: r.id, title: r.title, count: r.players.length })));
 
     // 1. OTAQ YARATMAQ
@@ -69,10 +71,9 @@ io.on('connection', (socket) => {
         updateGlobalRoomList();
     }
 
-    // 3. CANLI ÇAT MESAJI (YENİ)
+    // 3. CANLI ÇAT MESAJI
     socket.on('send-message', ({ roomId, message, username }) => {
         if (!rooms[roomId]) return;
-        // Mesajı otaqdakı hamıya (göndərən daxil) ötürürük
         io.to(roomId).emit('receive-message', {
             senderId: socket.id,
             username: username,
@@ -105,7 +106,34 @@ io.on('connection', (socket) => {
         });
     });
 
-    // 5. KART ATILMASI
+    // 5. DEKDƏN KART ÇƏKMƏK
+    socket.on('draw-card', (roomId) => {
+        const room = rooms[roomId];
+        if (!room || room.status !== 'playing') return;
+
+        const player = room.players[room.currentTurn];
+        if (player.id !== socket.id) return socket.emit('error-msg', 'Sizin növbəniz deyil!');
+
+        if (room.deck.length === 0) {
+            room.deck = createUnoDeck();
+        }
+
+        const newCard = room.deck.pop();
+        player.cards.push(newCard);
+
+        // Növbəni növbəti oyunçuya veririk
+        room.currentTurn = (room.currentTurn + 1) % room.players.length;
+
+        io.to(roomId).emit('game-updated', {
+            topCard: room.discardPile[room.discardPile.length - 1],
+            currentTurnId: room.players[room.currentTurn].id,
+            players: room.players.map(p => ({ id: p.id, username: p.username, cardCount: p.cards.length }))
+        });
+
+        socket.emit('your-cards', player.cards);
+    });
+
+    // 6. KART ATILMASI
     socket.on('play-card', ({ roomId, card, chosenColor }) => {
         const room = rooms[roomId];
         if (!room) return;
@@ -159,6 +187,8 @@ function updateGlobalRoomList() {
     io.emit('update-room-list', Object.values(rooms).map(r => ({ id: r.id, title: r.title, count: r.players.length })));
 }
 
-http.listen(3000, () => {
-    console.log('UNO Çat Serveri 3000 portunda aktivdir 🚀');
+// Render-in təyin etdiyi portda və ya 3000 portunda işləyir
+const PORT = process.env.PORT || 3000;
+http.listen(PORT, () => {
+    console.log(`UNO Serveri ${PORT} portunda aktivdir 🚀`);
 });

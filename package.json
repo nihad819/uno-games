@@ -1,7 +1,6 @@
 {
   "name": "uno-backend",
   "version": "1.0.0",
-  "description": "UNO game backend server",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

@@ -25,7 +25,7 @@
         .game-room-section { display: none; width: 100%; }
         .game-layout { display: flex; flex-direction: column; gap: 10px; }
         
-        /* HƏQİQİ DAİRƏVİ ARENA (MOBİLƏ UYĞUN) */
+        /* HƏQİQİ DAİRƏVİ ARENA */
         .game-arena { position: relative; width: 100%; height: 320px; background: radial-gradient(circle, #1c5235 0%, #0d2b1a 100%); border-radius: 25px; border: 4px solid #111; box-shadow: inset 0 0 30px rgba(0,0,0,0.8); margin-bottom: 5px; }
         .center-deck { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; gap: 12px; z-index: 10; }
 
@@ -46,14 +46,8 @@
 
         /* ƏSL HƏQİQİ UNO KART DİZAYNI */
         .uno-card { width: 58px; height: 88px; border-radius: 6px; border: 2.5px solid white; position: relative; box-shadow: 0 3px 6px rgba(0,0,0,0.4); cursor: pointer; display: inline-block; overflow: hidden; background-color: #111; }
-        
-        /* Kartın daxilindəki əsl UNO ovalı */
         .uno-card::before { content: ""; position: absolute; width: 120%; height: 65%; background: white; top: 18%; left: -10%; transform: rotate(-28deg); border-radius: 50%; z-index: 1; opacity: 0.95; }
-        
-        /* Ortadakı böyük simvol */
         .card-center-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-10deg); font-size: 24px; font-weight: 900; z-index: 2; text-shadow: 2px 2px 0px rgba(0,0,0,0.5); }
-        
-        /* Künclərdəki kiçik simvollar */
         .card-corner-text { position: absolute; font-size: 10px; font-weight: bold; color: white; z-index: 2; top: 2px; left: 4px; }
         .card-corner-text.bottom-right { top: auto; left: auto; bottom: 2px; right: 4px; transform: rotate(180deg); }
 
@@ -63,32 +57,30 @@
         .card-green { background-color: #00aa55; } .card-green .card-center-text { color: #00aa55; }
         .card-yellow { background-color: #ffaa00; } .card-yellow .card-center-text { color: #ffaa00; }
         
-        /* Qara (Wild) Kartlar */
         .card-black { background-color: #111; }
         .card-black::before { background: linear-gradient(45deg, #ff5555, #0055ff, #00aa55, #ffaa00); }
         .card-black .card-center-text { color: white; font-size: 16px; }
 
-        /* Kartın Arxası (Dəstə) */
         .card-back { background-color: #ff5555; }
         .card-back::before { background: #111; width: 100%; height: 60%; top: 20%; left: 0; transform: rotate(-20deg); }
         .card-back .card-center-text { color: #ffaa00; font-size: 13px; font-style: italic; }
 
-        /* SƏNİN ƏLİN (MOBİL ÜÇÜN KARTLARIN ÜST-ÜSTƏ YIĞILMASI) */
+        /* SƏNİN ƏLİN */
         .my-hand-container { width: 100%; background: rgba(0,0,0,0.4); padding: 10px 5px; border-radius: 15px; text-align: center; overflow-x: auto; white-space: nowrap; }
         .my-hand { display: inline-flex; padding-right: 20px; }
         .my-hand .uno-card { margin-right: -20px; transition: transform 0.2s; }
         .my-hand .uno-card:hover { transform: translateY(-15px) scale(1.1) !important; z-index: 100 !important; }
 
-        /* MOBİL MOBİL ÇAT PANELİ (AŞAĞIDA REZERV) */
+        /* ÇAT PANELİ */
         .chat-panel { width: 100%; background: rgba(20, 10, 40, 0.85); border: 2px solid #ff007f; border-radius: 15px; display: flex; flex-direction: column; height: 160px; overflow: hidden; }
         .chat-messages { flex: 1; padding: 8px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
-        .msg-item { background: rgba(255,255,255,0.08); padding: 4px 8px; border-radius: 8px; }
+        .msg-item { background: rgba(255,255,255,0.08); padding: 4px 8px; border-radius: 8px; line-height: 1.4; }
         .msg-item b { color: #00f0ff; }
         .chat-input-area { display: flex; background: #120626; padding: 5px; }
-        .chat-input-area input { flex: 1; padding: 8px; border-radius: 6px 0 0 6px; font-size: 13px; text-align: left; background: #1a0a3a; }
+        .chat-input-area input { flex: 1; padding: 8px; border-radius: 6px 0 0 6px; font-size: 13px; text-align: left; background: #1a0a3a; color: white; border: none; outline: none; }
         .chat-input-area button { padding: 8px 12px; border-radius: 0 6px 6px 0; font-size: 13px; border: none; }
 
-        /* Böyük ekranlar (Kompyuter üçün düzəliş) */
+        /* Responisve Desktop */
         @media (min-width: 768px) {
             .game-layout { flex-direction: row; }
             .game-arena { height: 420px; flex: 1; }
@@ -111,12 +103,12 @@
 <body>
 
 <div class="app-container">
-    <h1>🎨 NK UNO LIVE</h1>
+    <h1>🎨 REAL UNO LIVE</h1>
 
     <div id="lobby-page" class="lobby-section">
         <div class="controls">
             <input type="text" id="username" placeholder="Adınız...">
-            <input type="text" id="room-name-input" placeholder="Otaq Adı ">
+            <input type="text" id="room-name-input" placeholder="Otaq Adı (Məcburi deyil)">
             <button onclick="createNewRoom()">✨ Otaq Yarat</button>
         </div>
         <h3 style="color:#00f0ff; font-size:1rem; margin-bottom:8px;">Aktiv Çat Otaqları</h3>
@@ -298,7 +290,6 @@
         updateTable(topCard, currentTurnId, players);
     });
 
-    // ƏSL UNO KARTI HTML STRUKTURUNU YARADAN FUNKSİYA
     function generateCardHTML(card) {
         let displayType = card.type;
         return `
@@ -318,7 +309,6 @@
             wrapper.innerHTML = generateCardHTML(card);
             
             const cardDiv = wrapper.firstElementChild;
-            // Əldəki kartların mobil cihazlarda rahat görünməsi üçün dərəcə ilə yayılması
             cardDiv.style.transform = `rotate(${(idx - cards.length/2) * 2}deg) translateY(${Math.abs(idx - cards.length/2) * 1}px)`;
             
             cardDiv.onclick = function() {
@@ -344,6 +334,19 @@
             }
         });
     }
+
+    // 🔥 XÜSUSİ UNO KART BİLDİRİŞLƏRİ (+2, PAS, YÖN DƏYİŞMƏ)
+    socket.on('special-card-log', (text) => {
+        const chatBox = document.getElementById('chat-box');
+        chatBox.innerHTML += `<div class="msg-item" style="background:rgba(255, 170, 0, 0.15); border-left: 3px solid #ffaa00; font-weight:bold; color:#ffaa00;">📢 ${text}</div>`;
+        chatBox.scrollTop = chatBox.scrollHeight;
+    });
+
+    // OYUN BİTDİKDƏ QALİBİN ELAN EDİLMƏSİ
+    socket.on('game-over', ({ winner }) => {
+        alert(`🎉 TƏBRİKLƏR! Oyun bitdi. Qalib: ${winner}`);
+        location.reload(); 
+    });
 
     socket.on('error-msg', (msg) => alert(msg));
 </script>

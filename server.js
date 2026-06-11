@@ -168,47 +168,57 @@ io.on("connection", (socket) => {
             if (player.cards.length === 0) {
 
                 let user = await getUser(player.username) || {
-    xp: 0,
-    wins: 0,
-    losses: 0,
-    level: 1,
-    rank: "🥉 Bronze",
-    coins: 0
-};
+                    xp: 0,
+                    wins: 0,
+                    losses: 0,
+                    level: 1,
+                    rank: "🥉 Bronze",
+                    coins: 0
+                };
 
-// 🏆 WIN UPDATE
-user.wins += 1;
-user.xp += 50;
-user.level = Math.floor(user.xp / 100) + 1;
-user.rank = getRank(user.xp);
-user.coins += 10;
+                // 🏆 WIN UPDATE
+                user.wins += 1;
+                user.xp += 50;
+                user.level = Math.floor(user.xp / 100) + 1;
+                user.rank = getRank(user.xp);
+                user.coins += 10;
 
-await saveUser(player.username, user);
+                await saveUser(player.username, user);
 
-// 💀 LOSS UPDATE (digər oyunçular)
-for (let p of room.players) {
-    if (p.id !== player.id) {
+                // 💀 LOSS UPDATE (digər oyunçular)
+                for (let p of room.players) {
+                    if (p.id !== player.id) {
 
-        let u = await getUser(p.username) || {
-            xp: 0,
-            wins: 0,
-            losses: 0,
-            level: 1,
-            rank: "🥉 Bronze",
-            coins: 0
-        };
+                        let u = await getUser(p.username) || {
+                            xp: 0,
+                            wins: 0,
+                            losses: 0,
+                            level: 1,
+                            rank: "🥉 Bronze",
+                            coins: 0
+                        };
 
-        u.losses += 1;
+                        u.losses += 1;
 
-        await saveUser(p.username, u);
-    }
-}
+                        await saveUser(p.username, u);
+                    }
+                }
 
-// 🏁 GAME OVER EMIT
-io.to(roomId).emit("game-over", {
-    winner: player.username,
-    stats: user
+                // 🏁 GAME OVER EMIT
+                io.to(roomId).emit("game-over", {
+                    winner: player.username,
+                    stats: user
+                });
+
+                room.status = "waiting";
+                return;
+            }
+        }
+    });
 });
 
-room.status = "waiting";
-return;
+// 🔥 RENDER ÜÇÜN PORT VƏ LISTEN ƏMRİ (ƏLAVƏ EDİLDİ)
+const PORT = process.env.PORT || 3000;
+http.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on port ${PORT}`);
+});

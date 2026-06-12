@@ -5,7 +5,15 @@ const io = require("socket.io")(http, { cors: { origin: "*" } });
 const path = require("path");
 
 const admin = require("firebase-admin");
-const serviceAccount = require("./serviceAccountKey.json");
+
+// 🟢 RENDER UYUMLU FIREBASE BAĞLANTISI
+// Eğer yereldeysen json dosyasını okur, Render'daysan Environment Variable'dan okur.
+let serviceAccount;
+if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+} else {
+    serviceAccount = require("./serviceAccountKey.json");
+}
 
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount)
@@ -217,7 +225,7 @@ io.on("connection", (socket) => {
     });
 });
 
-// 🔥 RENDER ÜÇÜN PORT VƏ LISTEN ƏMRİ (ƏLAVƏ EDİLDİ)
+// 🔥 RENDER ÜÇÜN PORT VƏ LISTEN ƏMRİ
 const PORT = process.env.PORT || 3000;
 http.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on port ${PORT}`);
